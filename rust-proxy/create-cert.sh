@@ -1,30 +1,27 @@
 #!/bin/sh
+
+# Remove existing keys directory and create a new one
 rm -rf keys
 mkdir -p keys
 cd keys/
 
-# source: https://users.rust-lang.org/t/use-tokio-tungstenite-with-rustls-instead-of-native-tls-for-secure-websockets/90130
+# Step 1: Create an unencrypted private key and a CSR (Certificate Signing Request)
+openssl req -newkey rsa:2048 -nodes -subj "/C=FI/CN=localhost" -keyout key.pem -out key.csr
 
-# Create unencrypted private key and a CSR (certificate signing request)
-openssl req -newkey rsa:2048 -nodes -subj "/C=FI/CN=vahid" -keyout key.pem -out key.csr
+# Step 2: Create a self-signed root CA
+openssl req -x509 -sha256 -nodes -subj "/C=FI/CN=MyRootCA" -days 1825 -newkey rsa:2048 -keyout rootCA.key -out rootCA.crt
 
-# Create self-signed certificate (`cert.pem`) with the private key and CSR
-openssl x509 -signkey key.pem -in key.csr -req -days 365 -out cert.pem
-
-# Create a self-signed root CA
-openssl req -x509 -sha256 -nodes -subj "/C=FI/CN=vahid" -days 1825 -newkey rsa:2048 -keyout rootCA.key -out rootCA.crt
-
-
-# Create file localhost.ext with the following content:
-cat <<'EOF' >> localhost.ext
+# Step 3: Create a configuration file for SAN (Subject Alternative Name)
+cat <<EOF > localhost.ext
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
 subjectAltName = @alt_names
+
 [alt_names]
 DNS.1 = server
 IP.1 = 127.0.0.1
 EOF
 
-# Sign the CSR (`cert.pem`) with the root CA certificate and private key
-# => this overwrites `cert.pem` because it gets signed
-openssl x509 -req -CA rootCA.crt -CAkey rootCA.key -in key.csr -out cert.pem -days 365 -CAcreateserial -extfile localhost.ext
+# Step 4: Sign the CSR with the Root CA and create the final certificate (cert.pem)
+openssl x509 -req -in key.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out cert.pem -days 365 -extfile localhost.ext
