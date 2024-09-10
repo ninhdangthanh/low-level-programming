@@ -4,3 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+tokio = { version = "1", features = ["full"] }
+hyper = "0.14"
+tokio-rustls = "0.23"
+rustls = "0.20"
+rustls-pemfile = "1.0"
+futures = "0.3"
