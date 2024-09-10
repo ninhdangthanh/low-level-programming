@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::process::Command;
 use env_logger::Builder;
-use log::{error, info, LevelFilter};
+use log::LevelFilter;
 
 
 mod client;
@@ -66,13 +66,13 @@ fn handle_client(client_id: usize, mut stream: TcpStream, clients: Arc<Mutex<Has
     loop {
         match stream.read(&mut buffer) {
             Ok(0) => {
-                info!("Client {} disconnected", client_id);
+                println!("Client {} disconnected", client_id);
                 break;
             }
             Ok(n) => {
                 let data = &buffer[0..n];
 
-                info!("Server: data received from the client: {:?}", data);
+                println!("Server: data received from the client: {:?}", data);
 
                 let mut clients_guard = clients.lock().unwrap();
 
@@ -83,7 +83,7 @@ fn handle_client(client_id: usize, mut stream: TcpStream, clients: Arc<Mutex<Has
                 }
             }
             Err(e) => {
-                error!("Error reading from client {}: {}", client_id, e);
+                println!("Error reading from client {}: {}", client_id, e);
                 break;
             }
         }
@@ -109,7 +109,7 @@ fn server_mode() {
 
     let shared_tun = Arc::new(Mutex::new(tun_device));
 
-    info!("Server started on 0.0.0.0:12345");
+    println!("Server started on 0.0.0.0:12345");
 
     let tun_device_clone = shared_tun.clone();
     let clients_clone = clients.clone();
@@ -121,6 +121,7 @@ fn server_mode() {
             if let Ok(client_clone) = client.try_clone() {
                 drop(clients_guard);  // Unlock the mutex early
                 let mut locked_tun = tun_device_clone.lock().unwrap();
+                println!("Handle available client");
                 read_from_tun_and_send_to_client(&mut *locked_tun, client_clone);
             } else {
                 // Handle error while trying to clone the TcpStream
@@ -135,7 +136,7 @@ fn server_mode() {
     for (client_id, stream) in listener.incoming().enumerate() {
         match stream {
             Ok(stream) => {
-                info!("New client connected with ID: {}", client_id);
+                println!("New client connected with ID: {}", client_id);
 
                 let tun_device_clone = shared_tun.clone();
                 let clients_clone = clients.clone();
@@ -151,7 +152,7 @@ fn server_mode() {
                 thread::spawn(move || handle_client(client_id, stream, clients_arc));
             }
             Err(e) => {
-                error!("Connection failed: {}", e);
+                println!("Connection failed: {}", e);
             }
         }
     }
@@ -170,26 +171,27 @@ fn read_from_tun_and_send_to_client<T: tun::Device>(tun: &mut T, mut client: Tcp
             Ok(n) => {
                 match utils::encrypt(&buffer[..n]) {
                     Ok(encrypted_data) => {
+                        println!("encrypted_data {:?}", encrypted_data);
                         // Handle sending the encrypted data to the client
-                        info!("Received {} bytes from TUN device.", n);
+                        println!("Received {} bytes from TUN device.", n);
 
                         let vpn_packet = VpnPacket { data: encrypted_data };
                         // Serialize and send to client
                         let serialized_data = bincode::serialize(&vpn_packet).unwrap();
 
                         client.write_all(&serialized_data).unwrap();
-                        info!("Forwarded {} bytes to destination.", n);
+                        println!("Forwarded {} bytes to destination.", n);
 
                     },
                     Err(err_msg) => {
                         // Handle the encryption error
-                        error!("Encryption error: {}", err_msg);
+                        println!("Encryption error: {}", err_msg);
                     }
                 }
             },
             Err(e) => {
                 // Handle the TUN reading error
-                error!("TUN read error: {}", e);
+                println!("TUN read error: {}", e);
             }
         }
     }
@@ -200,37 +202,37 @@ fn read_from_tun_and_send_to_client<T: tun::Device>(tun: &mut T, mut client: Tcp
 #[tokio::main]
 async fn  main() {
     // Initialize the logger with 'info' as the default level
-    // Builder::new()
-    //     .filter(None, LevelFilter::Info)
-    //     .init();
+    Builder::new()
+        .filter(None, LevelFilter::Info)
+        .init();
 
-    // let matches = App::new("Simple VPN")
-    //     .version("1.0")
-    //     .author("Luis Soares")
-    //     .about("A simple VPN tunnel in Rust")
-    //     .arg(Arg::with_name("mode")
-    //         .required(true)
-    //         .index(1)
-    //         .possible_values(&["server", "client"])
-    //         .help("Runs the program in either server or client mode"))
-    //     .arg(Arg::with_name("vpn-server")
-    //         .long("vpn-server")
-    //         .value_name("IP")
-    //         .help("The IP address of the VPN server to connect to (client mode only)")
-    //         .takes_value(true))
-    //     .get_matches();
+    let matches = App::new("Simple VPN")
+        .version("1.0")
+        .author("Luis Soares")
+        .about("A simple VPN tunnel in Rust")
+        .arg(Arg::with_name("mode")
+            .required(true)
+            .index(1)
+            .possible_values(&["server", "client"])
+            .help("Runs the program in either server or client mode"))
+        .arg(Arg::with_name("vpn-server")
+            .long("vpn-server")
+            .value_name("IP")
+            .help("The IP address of the VPN server to connect to (client mode only)")
+            .takes_value(true))
+        .get_matches();
 
-    // let is_server_mode = matches.value_of("mode").unwrap() == "server";
+    let is_server_mode = matches.value_of("mode").unwrap() == "server";
 
-    // if is_server_mode {
-    //     server_mode();
-    // } else {
-    //     if let Some(vpn_server_ip) = matches.value_of("vpn-server") {
-    //         let server_address = format!("{}:12345", vpn_server_ip);
-    //         client::client_mode(server_address.as_str()).await;
-    //     } else {
-    //         eprintln!("Error: For client mode, you must provide the '--vpn-server' argument.");
-    //     }
-    // }
-    server_mode()
+    if is_server_mode {
+        server_mode();
+    } else {
+        if let Some(vpn_server_ip) = matches.value_of("vpn-server") {
+            let server_address = format!("{}:12345", vpn_server_ip);
+            client::client_mode(server_address.as_str()).await;
+        } else {
+            eprintln!("Error: For client mode, you must provide the '--vpn-server' argument.");
+        }
+    }
+
 }
