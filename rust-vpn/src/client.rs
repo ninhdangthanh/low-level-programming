@@ -2,7 +2,7 @@ use std::net::TcpStream;
 use std::io::{Read, Write};
 use std::process::Command;
 use tun::platform::Device;
-use log::{error, info};
+use log::error;
 
 use crate::utils::{decrypt, VpnPacket};
 
@@ -15,7 +15,7 @@ fn set_client_ip_and_route() {
     let ip_output = Command::new("ip")
         .arg("addr")
         .arg("add")
-        .arg("10.8.0.2/24")
+        .arg("10.8.0.3/24")
         .arg("dev")
         .arg("tun3")
         .output()
@@ -45,7 +45,7 @@ fn set_client_ip_and_route() {
         .arg("add")
         .arg("0.0.0.0/0")
         .arg("via")
-        .arg("10.8.0.1")
+        .arg("10.8.0.2")
         .arg("dev")
         .arg("tun3")
         .output()
@@ -64,9 +64,9 @@ async fn read_from_client_and_write_to_tun(client: &mut TcpStream, tun: &mut Dev
                 let vpn_packet: VpnPacket = bincode::deserialize(&buffer[..n]).unwrap();
                 let decrypted_data = decrypt(&vpn_packet.data);
 
-                info!("Writing data to tun0");
+                println!("Writing data to tun3, {:?}", decrypted_data);
 
-                tun.write(&decrypted_data).unwrap();
+                // tun.write(&decrypted_data).unwrap();
             }
             Err(e) => {
                 error!("Error reading from client: {}", e);
@@ -93,14 +93,19 @@ pub async fn client_mode(vpn_server_ip: &str) {
     // Set the client's IP and routing
     set_client_ip_and_route();
 
-    info!("Connected to the server {}", vpn_server_ip);
+    println!("Connected to the server {}", vpn_server_ip);
 
     let mut buffer = [0; 1024];
     loop {
         match stream.read(&mut buffer) {
             Ok(n) => {
-                info!("{} Received from the server", n);
+                println!("{} Received from the server", n);
+
+                println!("About to call read_from_client_and_write_to_tun");
+
                 read_from_client_and_write_to_tun(&mut stream_clone, &mut tun_device).await;
+
+                println!("Finished calling read_from_client_and_write_to_tun");
             }
             Err(_) => {
                 break;

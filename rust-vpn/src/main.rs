@@ -34,7 +34,7 @@ fn setup_tun_interface() -> Result<(), Box<dyn Error>> {
         .arg("ip")
         .arg("addr")
         .arg("add")
-        .arg("10.8.0.1/24")
+        .arg("10.8.0.2/24")
         .arg("dev")
         .arg("tun2")
         .output()?;

@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  vpn-server:
+    build: .
+    container_name: vpn_server
+    ports:
+      - "12345:12345"
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN  # Required for TUN/TAP device access
+    tty: true  # Ensure a pseudo-TTY is allocated
+    restart: always
+    network_mode: host
+
+#   vpn-client:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile.client
+#     container_name: vpn_client
+#     depends_on:
+#       - vpn-server
+#     environment:
+#       - VPN_SERVER=vpn_server
+#     networks:
+#       - vpn-network
+#     tty: true  # Ensure a pseudo-TTY is allocated
+
+# networks:
+#   vpn-network:
+#     driver: bridge
