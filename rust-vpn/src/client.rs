@@ -8,7 +8,7 @@ use crate::utils::{decrypt, VpnPacket};
 
 
 
-const TUN_INTERFACE_NAME: &str = "tun2";
+const TUN_INTERFACE_NAME: &str = "tun3";
 
 
 fn set_client_ip_and_route() {
@@ -17,7 +17,7 @@ fn set_client_ip_and_route() {
         .arg("add")
         .arg("10.8.0.2/24")
         .arg("dev")
-        .arg("tun0")
+        .arg("tun3")
         .output()
         .expect("Failed to execute IP command");
 
@@ -31,7 +31,7 @@ fn set_client_ip_and_route() {
         .arg("set")
         .arg("up")
         .arg("dev")
-        .arg("tun0")
+        .arg("tun3")
         .output()
         .expect("Failed to execute IP LINK command");
 
@@ -47,7 +47,7 @@ fn set_client_ip_and_route() {
         .arg("via")
         .arg("10.8.0.1")
         .arg("dev")
-        .arg("tun0")
+        .arg("tun3")
         .output()
         .expect("Failed to execute IP ROUTE command");
 

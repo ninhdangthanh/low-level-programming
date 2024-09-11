@@ -139,12 +139,23 @@ fn server_mode() {
                 println!("New client connected with ID: {}", client_id);
 
                 let tun_device_clone = shared_tun.clone();
-                let clients_clone = clients.clone();
+                let clients_clone: Arc<Mutex<HashMap<usize, TcpStream>>> = clients.clone();
 
                 thread::spawn(move || {
-                    let client_clone = clients_clone.lock().unwrap().get(&0).unwrap().try_clone().unwrap();
-                    let mut locked_tun = tun_device_clone.lock().unwrap();
-                    read_from_tun_and_send_to_client(&mut *locked_tun, client_clone);
+                    match clients_clone.lock().unwrap().get(&0) {
+                        Some(client_clone_result) => {
+                            let client_clone = client_clone_result.try_clone().unwrap();
+                            let mut locked_tun = tun_device_clone.lock().unwrap();
+                            read_from_tun_and_send_to_client(&mut *locked_tun, client_clone);
+                        },
+                        None => {
+                            let size = {
+                                let clients_guard = clients_clone.lock().unwrap();
+                                clients_guard.len() 
+                            };
+                            println!("Not found user, current size of client is {}", size);
+                        },
+                    }
                 });
 
                 clients.lock().unwrap().insert(client_id, stream.try_clone().unwrap());
@@ -179,9 +190,14 @@ fn read_from_tun_and_send_to_client<T: tun::Device>(tun: &mut T, mut client: Tcp
                         // Serialize and send to client
                         let serialized_data = bincode::serialize(&vpn_packet).unwrap();
 
-                        client.write_all(&serialized_data).unwrap();
-                        println!("Forwarded {} bytes to destination.", n);
-
+                        match client.write_all(&serialized_data) {
+                            Ok(_) => {
+                                println!("SUCCESS: write all serialized data to client")
+                            },
+                            Err(_) => {
+                                println!("FAILED: write all serialized data to client")
+                            },
+                        }
                     },
                     Err(err_msg) => {
                         // Handle the encryption error
